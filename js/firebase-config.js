@@ -23,13 +23,13 @@
 */
 
 const firebaseConfig = {
-  apiKey: "REMPLACE_MOI",
-  authDomain: "REMPLACE_MOI.firebaseapp.com",
-  databaseURL: "https://REMPLACE_MOI-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "REMPLACE_MOI",
-  storageBucket: "REMPLACE_MOI.appspot.com",
-  messagingSenderId: "REMPLACE_MOI",
-  appId: "REMPLACE_MOI"
+  apiKey: "AIzaSyAWgy7xqBMU2k-dLTl1BbkmOwlpthz9OYQ",
+  authDomain: "loup-garou-v2.firebaseapp.com",
+  databaseURL: "https://loup-garou-v2-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "loup-garou-v2",
+  storageBucket: "loup-garou-v2.firebasestorage.app",
+  messagingSenderId: "854258643873",
+  appId: "1:854258643873:web:a41538b3eb6cbc5d9191e0"
 };
 
 firebase.initializeApp(firebaseConfig);
