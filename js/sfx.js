@@ -38,7 +38,12 @@ const SFX = {
   toggle() {
     this.enabled = !this.enabled;
     localStorage.setItem('lg_sfx_enabled', this.enabled ? '1' : '0');
-    if (!this.enabled) this.stopAmbient();
+    if (!this.enabled) {
+      this.stopAmbient();
+      if (typeof MusicEngine !== 'undefined') MusicEngine.stop();
+    } else if (typeof MusicEngine !== 'undefined' && MusicEngine.themeKey) {
+      MusicEngine.start(MusicEngine.themeKey);
+    }
     return this.enabled;
   },
 

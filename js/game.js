@@ -50,7 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
   handleInviteLink();
   renderProfileBar();
   setInterval(updateTimerDisplay, 1000);
+  bindGlobalClickSound();
+  bindFirstInteractionAudio();
 });
+
+// Les navigateurs bloquent tout son tant qu'il n'y a pas eu une vraie
+// interaction utilisateur : on lance donc la musique de menu au tout
+// premier clic/toucher sur la page, ou qu'il soit.
+function bindFirstInteractionAudio() {
+  const unlock = () => {
+    MusicEngine.start('menu');
+    document.removeEventListener('pointerdown', unlock);
+    document.removeEventListener('keydown', unlock);
+  };
+  document.addEventListener('pointerdown', unlock, { once: true });
+  document.addEventListener('keydown', unlock, { once: true });
+}
+
+// Un leger clic sonore sur chaque bouton de l'interface, sans avoir a
+// l'ajouter manuellement partout.
+function bindGlobalClickSound() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (btn) SFX.click();
+  }, true);
+}
 
 function handleInviteLink() {
   const params = new URLSearchParams(window.location.search);
@@ -332,10 +356,11 @@ function render(room, prevStatus) {
 
   if (room.status === 'ended') {
     if (prevStatus !== 'ended') {
-      SFX.stopAmbient();
+      MusicEngine.stop();
       SFX.victoryFanfare(room.winner);
       Narrator.say(endNarration(room.winner), { interrupt: true });
       if (room.winner !== 'wolves') launchConfetti();
+      setTimeout(() => MusicEngine.start('menu'), 3000);
 
       const me = room.players[State.playerId];
       if (me && !me.isBot) {
@@ -378,12 +403,12 @@ function handlePhaseTransitionFx(room, prevStatus) {
   SFX.click();
 
   if (room.status === 'night') {
-    SFX.startAmbient('night');
+    MusicEngine.switchTheme('night');
     SFX.whoosh();
     if (room.round === 1) Narrator.say("La nuit tombe sur le village pour la première fois. Que le sort des habitants soit scellé dans l'ombre.", { interrupt: true });
     else Narrator.say(`La nuit ${room.round} enveloppe le village...`, { interrupt: true });
   } else if (room.status === 'day-reveal') {
-    SFX.startAmbient('day');
+    MusicEngine.switchTheme('day');
     const deaths = room.deathsThisRound || [];
     SFX.bellToll();
     if (deaths.length) setTimeout(() => SFX.death(), 300);
@@ -616,7 +641,7 @@ function backToHome() {
   if (State.roomRef) State.roomRef.off();
   db.ref(`rooms/${State.roomCode}/chat`).off();
   db.ref(`rooms/${State.roomCode}/reactions`).off();
-  SFX.stopAmbient();
+  MusicEngine.switchTheme('menu');
   document.body.classList.remove('phase-night', 'phase-day');
   HostEngine.stop();
   BotController.stop();

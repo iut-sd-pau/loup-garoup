@@ -33,9 +33,11 @@ const BotController = {
     this.roomCode = roomCode;
     this.ref = db.ref(`rooms/${roomCode}`);
     this.ref.on('value', snap => this.onChange(snap.val()));
+    this.bindChatListener();
   },
   stop() {
     if (this.ref) this.ref.off('value');
+    if (this._chatListenerRef) { this._chatListenerRef.off('child_added'); this._chatListenerRef = null; }
     this.scheduled.clear();
     this.chatRoundsHandled.clear();
   },
@@ -108,23 +110,7 @@ const BotController = {
           }
         });
       } else if (step === 'wolves' && isWolf(p.role)) {
-        if (night.wolfVotes && night.wolfVotes[id]) return;
-        this.once(key, async () => {
-          const fresh = (await this.ref.once('value')).val();
-          if (fresh.night.wolfVotes && fresh.night.wolfVotes[id]) return;
-          // Les loups doivent choisir UNE SEULE victime ensemble : si un autre
-          // loup (bot ou humain) a deja vote, le bot se rallie a ce choix
-          // pour converger vers le consensus plutot que de voter au hasard.
-          const existingVotes = Object.values(fresh.night.wolfVotes || {});
-          let target;
-          if (existingVotes.length) {
-            target = existingVotes[0];
-          } else {
-            const targets = Object.entries(fresh.players).filter(([pid, pp]) => pp.alive && !isWolf(pp.role)).map(([pid]) => pid);
-            target = this.randomFrom(targets);
-          }
-          if (target) await this.ref.child(`night/wolfVotes/${id}`).set(target);
-        });
+        this.reconcileWolfVote(room, id, p);
       } else if (step === 'loup_blanc' && p.role === 'loup_blanc') {
         if (night.loupBlancTarget) return;
         this.once(key, async () => {
@@ -191,6 +177,164 @@ const BotController = {
         });
       }
     });
+  },
+
+  // Les loups-bots doivent VRAIMENT suivre les loups humains, pas l'inverse.
+  // Si un loup humain a deja vote, le bot se rallie a SON choix (pas au
+  // premier vote quel qu'il soit). S'il n'y a aucun loup humain, on retombe
+  // sur la convergence habituelle (premier vote existant, sinon au hasard).
+  // Cette fonction est appelee a CHAQUE mise a jour de la salle (pas une
+  // seule fois), donc si le loup humain change d'avis, le bot se realigne.
+  reconcileWolfVote(room, id, p) {
+    const night = room.night || {};
+    const votes = night.wolfVotes || {};
+    const wolfEntries = Object.entries(room.players).filter(([pid, pp]) => pp.alive && isWolf(pp.role));
+    const humanVoted = wolfEntries.find(([pid, pp]) => !pp.isBot && votes[pid]);
+    const myVote = votes[id];
+
+    if (humanVoted) {
+      const desiredTarget = votes[humanVoted[0]];
+      if (myVote === desiredTarget) return; // deja aligne avec le loup humain
+      const key = `wolfrealign-${room.round}-${id}-${desiredTarget}`;
+      this.once(key, async () => {
+        const fresh = (await this.ref.once('value')).val();
+        if (!fresh || fresh.status !== 'night') return;
+        const st = fresh.night && fresh.night.steps[fresh.night.stepIndex];
+        if (st !== 'wolves') return;
+        const freshVotes = fresh.night.wolfVotes || {};
+        const freshWolves = Object.entries(fresh.players).filter(([pid, pp]) => pp.alive && isWolf(pp.role));
+        const freshHuman = freshWolves.find(([pid, pp]) => !pp.isBot && freshVotes[pid]);
+        if (!freshHuman) return;
+        const finalTarget = freshVotes[freshHuman[0]];
+        if (freshVotes[id] === finalTarget) return;
+        await this.ref.child(`night/wolfVotes/${id}`).set(finalTarget);
+      }, 1000, 3000);
+      return;
+    }
+
+    if (!myVote) {
+      const key = `night-${room.round}-wolves-${id}`;
+      this.once(key, async () => {
+        const fresh = (await this.ref.once('value')).val();
+        if (fresh.night.wolfVotes && fresh.night.wolfVotes[id]) return;
+        const anyVote = Object.values(fresh.night.wolfVotes || {});
+        let target;
+        if (anyVote.length) {
+          target = anyVote[0];
+        } else {
+          const targets = Object.entries(fresh.players).filter(([pid, pp]) => pp.alive && !isWolf(pp.role)).map(([pid]) => pid);
+          target = this.randomFrom(targets);
+        }
+        if (target) await this.ref.child(`night/wolfVotes/${id}`).set(target);
+      });
+    }
+  },
+
+  // ============ ECOUTE DU CHAT : les bots reagissent vraiment ============
+  bindChatListener() {
+    this._chatListenerRef = db.ref(`rooms/${this.roomCode}/chat`).limitToLast(1);
+    this._chatListenerRef.on('child_added', (snap) => {
+      const msg = snap.val();
+      if (!msg || Date.now() - msg.ts > 8000) return; // ignore l'historique au chargement initial
+      if (msg.channel === 'wolves') this.reactToWolfChat(msg);
+      else if (msg.channel === 'village') this.reactToVillageChat(msg);
+    });
+  },
+
+  // Cherche un nom de joueur mentionne dans un message (le plus long nom
+  // correspondant d'abord, pour eviter qu'un nom court soit un sous-mot).
+  findMentionedName(text, candidateNames) {
+    const lower = text.toLowerCase();
+    const sorted = [...candidateNames].sort((a, b) => b.length - a.length);
+    for (const name of sorted) {
+      if (name.length >= 2 && lower.includes(name.toLowerCase())) return name;
+    }
+    return null;
+  },
+
+  async reactToWolfChat(msg) {
+    const room = (await this.ref.once('value')).val();
+    if (!room || room.status !== 'night') return;
+    const step = room.night && room.night.steps[room.night.stepIndex];
+    if (step !== 'wolves') return;
+    const author = room.players[msg.pid];
+    if (!author || author.isBot) return; // ne reagit qu'aux messages humains (evite les boucles bot<->bot)
+    if (!isWolf(author.role) && author.role !== 'loup_blanc') return;
+
+    const wolfBots = Object.entries(room.players).filter(([id, pp]) => pp.isBot && pp.alive && isWolf(pp.role));
+    if (wolfBots.length === 0) return;
+
+    const targetNames = Object.values(room.players).filter(pp => pp.alive && !isWolf(pp.role)).map(pp => pp.name);
+    const mentioned = this.findMentionedName(msg.text, targetNames);
+    if (!mentioned) return;
+    const targetEntry = Object.entries(room.players).find(([id, pp]) => pp.name === mentioned && pp.alive && !isWolf(pp.role));
+    if (!targetEntry) return;
+    const targetId = targetEntry[0];
+
+    const replies = [
+      `D'accord, va pour ${mentioned}.`,
+      `Ok, ${mentioned} alors.`,
+      `Ca me va, je change pour ${mentioned}.`,
+      `Bonne idee, ${mentioned}.`,
+      `Va pour ${mentioned}, je te suis.`
+    ];
+
+    wolfBots.forEach(([botId, botP]) => {
+      const delay = 1000 + Math.random() * 2200;
+      setTimeout(async () => {
+        const fresh = (await this.ref.once('value')).val();
+        if (!fresh || fresh.status !== 'night') return;
+        const st = fresh.night && fresh.night.steps[fresh.night.stepIndex];
+        if (st !== 'wolves') return;
+        const currentVote = fresh.night.wolfVotes && fresh.night.wolfVotes[botId];
+        if (currentVote === targetId) return; // deja d'accord
+        await this.ref.child(`night/wolfVotes/${botId}`).set(targetId);
+        if (Math.random() < 0.75) {
+          const line = this.randomFrom(replies);
+          await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: botId, name: botP.name, text: line, channel: 'wolves', ts: Date.now() });
+        }
+      }, delay);
+    });
+  },
+
+  async reactToVillageChat(msg) {
+    const room = (await this.ref.once('value')).val();
+    if (!room || room.status !== 'day-discuss') return;
+    const author = room.players[msg.pid];
+    if (!author || author.isBot) return;
+
+    const bots = Object.entries(room.players).filter(([id, pp]) => pp.isBot && pp.alive);
+    if (bots.length === 0) return;
+    if (Math.random() > 0.4) return; // ne reagit pas a chaque message, sinon ca spam
+
+    const names = Object.values(room.players).filter(pp => pp.alive).map(pp => pp.name);
+    const mentioned = this.findMentionedName(msg.text, names.filter(n => n !== author.name));
+    const [botId, botP] = bots[Math.floor(Math.random() * bots.length)];
+
+    const delay = 1500 + Math.random() * 4000;
+    setTimeout(async () => {
+      const fresh = (await this.ref.once('value')).val();
+      if (!fresh || fresh.status !== 'day-discuss') return;
+      if (fresh.day && fresh.day.speakerPhase === 'turns') {
+        const speaker = fresh.day.speakOrder[fresh.day.speakerIndex];
+        if (speaker !== botId) return; // respecte le tour de parole
+      }
+      let line;
+      if (mentioned && Math.random() < 0.65) {
+        const reactions = [
+          `Je suis d'accord avec toi sur ${mentioned}.`,
+          `Ouais, ${mentioned} m'a paru louche aussi.`,
+          `Pas convaincu pour ${mentioned}, mais pourquoi pas.`,
+          `Hmm, je verrais plutot ailleurs que ${mentioned}, mais j'ecoute.`,
+          `${mentioned} ? Interessant, dis-en plus.`
+        ];
+        line = this.randomFrom(reactions);
+      } else {
+        const others = names.filter(n => n !== botP.name);
+        line = this.randomFrom(CHAT_LINES).replace('{name}', this.randomFrom(others) || 'quelqu\'un');
+      }
+      await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: botId, name: botP.name, text: line, channel: 'village', ts: Date.now() });
+    }, delay);
   },
 
   // ============ VOTE DE JOUR ============

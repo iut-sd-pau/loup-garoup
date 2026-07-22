@@ -1,12 +1,27 @@
-# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V7)
+# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V9)
 
 Jeu du Loup-Garou multijoueur en temps réel, jouable dans le navigateur, entre amis, avec des inconnus, ou avec des bots. De 1 a 50 joueurs.
 
-## V7 — Correctif critique : la nuit ne finissait jamais
+## V9 — Les bots ecoutent et suivent vraiment les loups humains
 
-Un vrai bug bloquant a ete trouve et corrige : en V6, une fois que tout le monde avait fini ses actions de nuit, la derniere etape interne ("resolution") n'avait aucune condition pour se declencher automatiquement — resultat, la nuit restait bloquee indefiniment sans que l'hote force manuellement le passage. Corrige : des que tout le monde a fini, un **petit compte a rebours de quelques secondes** se declenche ("le village sombre dans un sommeil profond..."), puis la nuit se resout automatiquement, puis le jour se leve normalement. Les etapes ou un joueur doit encore reflechir restent, elles, sans limite de temps comme demande.
+Correctif cible sur un vrai probleme signale : dans le chat prive des loups, un loup humain qui demandait de changer de cible n'etait pas suivi par le bot, qui forcait l'inverse (le joueur humain devait s'aligner sur le bot au lieu du contraire).
 
-Ce correctif a ete verifie avec un test d'integration automatise simulant un cycle complet (vote des loups → Voyante avec accuse de lecture → compte a rebours → reveil du village), en plus des tests de distribution des roles de la V6.
+- 🐺 **Priorite systematique au loup humain** : dans un groupe de loups mixte (humain + bots), les bots se rallient desormais TOUJOURS au choix du loup humain plutot qu'a un choix de bot ou a un tirage au sort. S'il n'y a que des bots, ils convergent entre eux comme avant.
+- 🔁 **Reconciliation continue** : si le loup humain change d'avis en cours de nuit, les bots s'en apercoivent et changent de cible avec lui — ce n'etait pas le cas avant (les bots ne votaient qu'une seule fois et n'y revenaient jamais).
+- 💬 **Vraie ecoute du chat des loups** : quand un loup humain ecrit un message dans le chat prive mentionnant le nom d'une cible, les bots-loups le "lisent", changent leur vote pour suivre cette suggestion, et repondent naturellement dans le chat ("D'accord, va pour {nom}.", "Ok, je change pour {nom}."), au lieu de rester silencieux et robotiques.
+- 💬 **Chat du village plus vivant** : les bots reagissent parfois (pas a chaque message, pour ne pas spammer) aux messages des joueurs humains en journee, en mentionnant le nom cite et en donnant un avis (d'accord / pas convaincu), plutot que d'envoyer des messages generiques sans lien avec la conversation.
+- ✅ **Teste** : un test d'integration simule exactement le scenario signale (loup humain qui vote, puis change d'avis, puis l'exprime au chat) et verifie que le bot suit a chaque etape.
+
+## Nouveautes V8 (toujours presentes)
+
+- 🎵 Vraie musique d'ambiance generative (menu / nuit / jour), plus un simple bourdonnement
+- 🖱️ Bruitage de clic sur tous les boutons
+- 🗣️ Voix du narrateur corrigee (pitch naturel, meilleure selection de voix)
+- 📱 Passe complete d'adaptation mobile (plus de debordement horizontal, tailles fluides, HUD repense)
+
+## Nouveautes V7 (toujours presentes)
+
+- 🐛 Correctif critique : la nuit se resout desormais toujours automatiquement (petit compte a rebours) une fois que tout le monde a fini.
 
 ## Nouveautes V5/V6 (toujours presentes)
 
@@ -16,23 +31,14 @@ Ce correctif a ete verifie avec un test d'integration automatise simulant un cyc
 - 🔮 La Voyante (et le Renard) voient vraiment leur résultat, avec un accusé de lecture avant de continuer
 - 🌙 La nuit n'a pas de minuteur pour les décisions ; seule la journée a une durée fixée à l'avance
 - 🔁 On peut changer d'avis (loups, votes, Salvateur, Corbeau, Loup Blanc) avant que l'étape ne soit validée
-- 🐛 Plus aucune étape de nuit ne peut rester bloquée faute de titulaire du rôle
 
-## Nouveautes V4 (toujours presentes)
+## Nouveautes V3/V4 (toujours presentes)
 
-- ⏭️ Passer son tour pendant le tour de parole
-- 🎙️ Tour de parole adaptatif à la durée de débat, avec débat libre garanti
-- 👀 Aperçu "à suivre", mise en surbrillance du joueur qui parle
-- 📊 Barres de progression en direct pendant les votes
-- ⏭️ "Forcer le passage" côté hôte en cas d'absence d'un joueur
-- 🎭 Rappel de rôle à tout moment via le HUD
-
-## Nouveautes V3 (toujours presentes)
-
-- 🤖 Bots (IA) ajoutables dans le lobby, qui votent, jouent leur rôle la nuit et discutent au chat
+- 🤖 Bots (IA) ajoutables dans le lobby
 - 🌍 Salles publiques / matchmaking, partie aléatoire
 - 👥 1 à 50 joueurs, nombre de loups adapté automatiquement
 - 🎭 6 rôles supplémentaires : Idiot du Village, Ancien, Corbeau, Renard, Voleur, Loup Blanc
+- ⏭️ Passer son tour, tour de parole adaptatif, "Forcer le passage" côté hôte, rappel de rôle
 
 ## ⚠️ A propos de la communication vocale
 
@@ -99,6 +105,7 @@ loup-garou/
     ├── ui.js                  Navigation d'ecrans, toasts
     ├── narrator.js            Narrateur vocal (Web Speech API)
     ├── sfx.js                  Sons generes en direct (Web Audio API)
+    ├── music.js                Musique d'ambiance generative (accords + arpege)
     ├── shop.js                  Profil, monnaie, boutique cosmetique, succes
     ├── host-engine.js         Machine a etats (executee par le client hote)
     ├── bots.js                 IA des bots (executee par le client hote)
