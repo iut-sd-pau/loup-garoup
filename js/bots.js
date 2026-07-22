@@ -47,9 +47,7 @@ const BotController = {
     const bots = Object.entries(room.players || {}).filter(([id, p]) => p.isBot && p.alive);
     if (bots.length === 0) return;
 
-    if (room.status === 'mayor-candidacy') this.handleMayorCandidacy(room, bots);
-    else if (room.status === 'mayor-speeches') this.handleMayorSpeeches(room, bots);
-    else if (room.status === 'mayor-election') this.handleMayorElection(room, bots);
+    if (room.status === 'mayor-election') this.handleMayorElection(room, bots);
     else if (room.status === 'night') this.handleNight(room, bots);
     else if (room.status === 'day-vote') this.handleDayVote(room, bots);
     else if (room.status === 'hunter') this.handleHunter(room, bots);
@@ -69,63 +67,8 @@ const BotController = {
     return Object.entries(room.players || {}).filter(([id, p]) => p.alive && id !== excludeId).map(([id]) => id);
   },
 
-  // ============ CANDIDATURE AU POSTE DE MAIRE ============
-  handleMayorCandidacy(room, bots) {
-    const speeches = [
-      "Je serais un bon Maire, j'ai l'esprit d'analyse.",
-      "Franchement, personne ne se lance ? Je veux bien essayer.",
-      "Je pense pouvoir aider le village a garder son calme.",
-      "Allez, je me presente, on verra bien !"
-    ];
-    bots.forEach(([id, p]) => {
-      const key = `candidacy-${id}`;
-      if (room.candidacyResponses && room.candidacyResponses[id] !== undefined) return;
-      this.once(key, async () => {
-        const fresh = (await this.ref.once('value')).val();
-        if (!fresh || fresh.status !== 'mayor-candidacy') return;
-        if (fresh.candidacyResponses && fresh.candidacyResponses[id] !== undefined) return;
-        const runs = Math.random() < 0.35; // la plupart des bots ne se presentent pas, comme des humains timides
-        await this.ref.update({ [`mayorCandidates/${id}`]: runs, [`candidacyResponses/${id}`]: true });
-      }, 2000, 15000);
-    });
-  },
-
-  // ============ DISCOURS DE CANDIDATURE ============
-  handleMayorSpeeches(room, bots) {
-    const speech = room.mayorSpeech || {};
-    const order = speech.order || [];
-    const speakerId = order[speech.index || 0];
-    const speakerBot = bots.find(([id]) => id === speakerId);
-    if (!speakerBot) return;
-    const [id, p] = speakerBot;
-    const key = `speech-${speech.index || 0}-${id}`;
-    const lines = [
-      "Je pense avoir la tete froide qu'il faut pour ce role. Votez pour moi !",
-      "J'ecoute tout le monde avant de trancher, je crois que c'est ce qu'il faut au village.",
-      "Je n'ai rien a cacher, et je ferai de mon mieux pour le village.",
-      "Faites-moi confiance, je prendrai les votes serieusement.",
-      "Je serai juste et j'ecouterai les arguments de chacun."
-    ];
-    this.once(key, async () => {
-      const fresh = (await this.ref.once('value')).val();
-      if (!fresh || fresh.status !== 'mayor-speeches') return;
-      const freshSpeech = fresh.mayorSpeech || {};
-      if ((freshSpeech.order || [])[freshSpeech.index || 0] !== id) return;
-      await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: id, name: p.name, text: this.randomFrom(lines), channel: 'village', ts: Date.now() });
-      // termine son discours peu apres, pas la peine de faire attendre tout le monde 20s
-      setTimeout(async () => {
-        const f2 = (await this.ref.once('value')).val();
-        if (!f2 || f2.status !== 'mayor-speeches') return;
-        const s2 = f2.mayorSpeech || {};
-        if ((s2.order || [])[s2.index || 0] !== id) return;
-        await this.ref.child('mayorSpeech/skipRequested').set(id);
-      }, 2500 + Math.random() * 2000);
-    }, 1500, 4000);
-  },
-
   // ============ ELECTION DU MAIRE ============
   handleMayorElection(room, bots) {
-    const pool = room.mayorPool && room.mayorPool.length ? room.mayorPool : this.otherAliveIds(room, null);
     bots.forEach(([id]) => {
       const key = `mayor-${id}`;
       if (room.mayorVotes && room.mayorVotes[id]) return;
@@ -133,9 +76,7 @@ const BotController = {
         const fresh = (await this.ref.once('value')).val();
         if (!fresh || fresh.status !== 'mayor-election') return;
         if (fresh.mayorVotes && fresh.mayorVotes[id]) return;
-        const freshPool = fresh.mayorPool && fresh.mayorPool.length ? fresh.mayorPool : this.otherAliveIds(fresh, null);
-        const validPool = freshPool.filter(pid => fresh.players[pid] && fresh.players[pid].alive);
-        const target = this.randomFrom(validPool.length ? validPool : this.otherAliveIds(fresh, null));
+        const target = this.randomFrom(this.otherAliveIds(fresh, null));
         if (target) await this.ref.child(`mayorVotes/${id}`).set(target);
       });
     });

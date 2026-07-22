@@ -35,8 +35,6 @@ const HostEngine = {
       if (room.status === 'night') await this.evaluateNight(room);
       else if (room.status === 'day-vote') await this.evaluateDayVote(room);
       else if (room.status === 'hunter') await this.evaluateHunter(room);
-      else if (room.status === 'mayor-candidacy') await this.evaluateMayorCandidacy(room);
-      else if (room.status === 'mayor-speeches') await this.evaluateMayorSpeeches(room);
       else if (room.status === 'mayor-election') await this.evaluateMayorElection(room);
       else if (room.status === 'mayor-succession') await this.evaluateMayorSuccession(room);
       else if (room.status === 'day-discuss') await this.evaluateDayDiscuss(room);
@@ -64,10 +62,6 @@ const HostEngine = {
     if (room.status === 'day-discuss' && room.day && room.day.speakerPhase !== 'free' && room.day.speakerEndsAt && Date.now() >= room.day.speakerEndsAt) {
       await this.advanceSpeaker(room);
     }
-    // Rotation des discours de candidature au poste de Maire
-    if (room.status === 'mayor-speeches' && room.mayorSpeech && room.mayorSpeech.endsAt && Date.now() >= room.mayorSpeech.endsAt) {
-      await this.advanceMayorSpeech(room);
-    }
 
     if (!room.phaseEndsAt) return;
     if (Date.now() < room.phaseEndsAt) return;
@@ -84,10 +78,6 @@ const HostEngine = {
       await this.evaluateMayorElection(room, true);
     } else if (room.status === 'mayor-succession') {
       await this.evaluateMayorSuccession(room, true);
-    } else if (room.status === 'mayor-candidacy') {
-      await this.evaluateMayorCandidacy(room, true);
-    } else if (room.status === 'mayor-speeches') {
-      await this.evaluateMayorSpeeches(room, true);
     }
   },
 
@@ -114,105 +104,7 @@ const HostEngine = {
     }
   },
 
-  // ============ CANDIDATURE AU POSTE DE MAIRE ============
-  // Etape optionnelle et volontaire : chacun choisit s'il se presente ou non.
-  // Personne n'est oblige de repondre (silence = non), mais si tout le monde
-  // a explicitement repondu on n'attend pas la fin du minuteur pour rien.
-  async startMayorCandidacy(room) {
-    await this.ref.update({
-      status: 'mayor-candidacy',
-      mayorCandidates: null,
-      candidacyResponses: null,
-      mayorSpeech: null,
-      mayorVotes: null,
-      mayorPool: null,
-      phaseEndsAt: Date.now() + 25000
-    });
-  },
-
-  async evaluateMayorCandidacy(room, forceTimeout = false) {
-    const alive = this.alivePlayers(room);
-    const responses = room.candidacyResponses || {};
-    const allResponded = alive.length > 0 && alive.every(([id]) => responses[id] !== undefined);
-    if (!allResponded && !forceTimeout) return;
-    await this.resolveMayorCandidacy(room);
-  },
-
-  async resolveMayorCandidacy(room) {
-    const alive = this.alivePlayers(room);
-    const candidateIds = alive.filter(([id]) => room.mayorCandidates && room.mayorCandidates[id]).map(([id]) => id);
-    const updates = {};
-
-    if (candidateIds.length === 0) {
-      // Personne ne s'est porte volontaire : on ne force personne a se
-      // presenter, le village vote directement parmi tout le monde.
-      updates['log/' + Date.now()] = { round: 0, text: `🗳️ Personne ne s'est porté candidat au poste de Maire : le village va voter directement.`, ts: Date.now() };
-      updates['status'] = 'mayor-election';
-      updates['mayorVotes'] = null;
-      updates['mayorPool'] = alive.map(([id]) => id);
-      updates['phaseEndsAt'] = Date.now() + 35000;
-      await this.ref.update(updates);
-      return;
-    }
-
-    if (candidateIds.length === 1) {
-      const soleId = candidateIds[0];
-      updates[`players/${soleId}/isMayor`] = true;
-      updates['log/' + Date.now()] = { round: 0, text: `👑 ${room.players[soleId].name} est l'unique candidat(e) et devient Maire sans opposition.`, ts: Date.now() };
-      await this.ref.update(updates);
-      const fresh = (await this.ref.once('value')).val();
-      await this.startNight(fresh, 1);
-      return;
-    }
-
-    const names = candidateIds.map(id => room.players[id].name).join(', ');
-    updates['log/' + Date.now()] = { round: 0, text: `🗳️ ${candidateIds.length} candidat(e)s se présentent au poste de Maire : ${names}. Chacun aura un temps de parole avant le vote.`, ts: Date.now() };
-    await this.ref.update(updates);
-    const fresh = (await this.ref.once('value')).val();
-    await this.startMayorSpeeches(fresh, candidateIds);
-  },
-
-  // ============ DISCOURS DES CANDIDATS ============
-  async startMayorSpeeches(room, candidateIds) {
-    const order = shuffleArray(candidateIds);
-    await this.ref.update({
-      status: 'mayor-speeches',
-      mayorSpeech: { order, index: 0, endsAt: Date.now() + 20000 },
-      phaseEndsAt: null
-    });
-  },
-
-  async evaluateMayorSpeeches(room, forceTimeout = false) {
-    const speech = room.mayorSpeech || {};
-    const order = speech.order || [];
-    const currentSpeaker = order[speech.index || 0];
-    const skipped = speech.skipRequested && speech.skipRequested === currentSpeaker;
-    if (!forceTimeout && !skipped) return;
-    await this.advanceMayorSpeech(room);
-  },
-
-  async advanceMayorSpeech(room) {
-    const speech = room.mayorSpeech || {};
-    const order = speech.order || [];
-    const nextIndex = (speech.index || 0) + 1;
-    if (nextIndex >= order.length) {
-      await this.ref.update({
-        status: 'mayor-election',
-        mayorVotes: null,
-        mayorPool: order,
-        mayorSpeech: null,
-        phaseEndsAt: Date.now() + 35000
-      });
-    } else {
-      await this.ref.update({
-        'mayorSpeech/index': nextIndex,
-        'mayorSpeech/endsAt': Date.now() + 20000,
-        'mayorSpeech/skipRequested': null
-      });
-    }
-  },
-
-  // ============ VOTE FINAL (parmi les candidats, ou tout le monde si personne ne s'est presente) ============
+  // ============ ELECTION DU MAIRE ============
   async evaluateMayorElection(room, forceTimeout = false) {
     const alive = this.alivePlayers(room);
     const votes = room.mayorVotes || {};
@@ -226,7 +118,6 @@ const HostEngine = {
       updates['log/' + Date.now()] = { round: 0, text: `👑 ${room.players[winnerId].name} a été élu(e) Maire du village. Son vote comptera double.`, ts: Date.now() };
     }
     updates['mayorVotes'] = null;
-    updates['mayorPool'] = null;
     await this.ref.update(updates);
     const fresh = (await this.ref.once('value')).val();
     await this.startNight(fresh, 1);

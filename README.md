@@ -1,37 +1,27 @@
-# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V10)
+# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V9)
 
 Jeu du Loup-Garou multijoueur en temps réel, jouable dans le navigateur, entre amis, avec des inconnus, ou avec des bots. De 1 a 50 joueurs.
 
-## V10 — Vraie élection du Maire (candidature, discours, vote)
+## V9 — Les bots ecoutent et suivent vraiment les loups humains
 
-Quand le Maire est active dans les reglages, l'election se deroule desormais en plusieurs temps forts au lieu d'un vote direct :
+Correctif cible sur un vrai probleme signale : dans le chat prive des loups, un loup humain qui demandait de changer de cible n'etait pas suivi par le bot, qui forcait l'inverse (le joueur humain devait s'aligner sur le bot au lieu du contraire).
 
-1. 🎗️ **Candidature (facultative)** : chaque joueur vivant decide s'il se presente ou non — ce n'est jamais obligatoire, on peut tout a fait decliner. Vous voyez en direct qui s'est deja porte candidat.
-2. 🎤 **Discours a tour de role** : si 2 candidats ou plus se presentent, chacun a son tour de parole (chat du village) pour convaincre le village de voter pour lui, avec un bouton pour terminer son discours plus tot si besoin.
-3. 👑 **Vote final** : le village (candidats compris) vote parmi les personnes qui se sont presentees. Le Maire elu voit son vote compter double pour le reste de la partie.
-
-Cas particuliers geres proprement :
-- **Un seul candidat** → il/elle est elu(e) sans opposition, pas besoin de vote inutile.
-- **Aucun candidat** → personne n'est force de se presenter ; le village vote alors directement parmi tout le monde, comme avant.
-
-Les bots participent naturellement : environ un tiers d'entre eux se portent candidats, prononcent un petit discours dans le chat, puis votent parmi les candidats reels (pas au hasard parmi tout le monde).
-
-✅ **Teste** : les 3 scenarios (aucun candidat, un seul candidat, plusieurs candidats avec discours) sont verifies par un test d'integration automatise.
-
-## Nouveautes V9 (toujours presentes)
-
-- 🐺 Les bots-loups priorisent et suivent toujours le choix d'un loup humain (y compris s'il change d'avis en cours de nuit ou l'exprime dans le chat prive des loups)
-- 💬 Chat du village plus vivant : les bots reagissent parfois aux messages en mentionnant les noms cites
+- 🐺 **Priorite systematique au loup humain** : dans un groupe de loups mixte (humain + bots), les bots se rallient desormais TOUJOURS au choix du loup humain plutot qu'a un choix de bot ou a un tirage au sort. S'il n'y a que des bots, ils convergent entre eux comme avant.
+- 🔁 **Reconciliation continue** : si le loup humain change d'avis en cours de nuit, les bots s'en apercoivent et changent de cible avec lui — ce n'etait pas le cas avant (les bots ne votaient qu'une seule fois et n'y revenaient jamais).
+- 💬 **Vraie ecoute du chat des loups** : quand un loup humain ecrit un message dans le chat prive mentionnant le nom d'une cible, les bots-loups le "lisent", changent leur vote pour suivre cette suggestion, et repondent naturellement dans le chat ("D'accord, va pour {nom}.", "Ok, je change pour {nom}."), au lieu de rester silencieux et robotiques.
+- 💬 **Chat du village plus vivant** : les bots reagissent parfois (pas a chaque message, pour ne pas spammer) aux messages des joueurs humains en journee, en mentionnant le nom cite et en donnant un avis (d'accord / pas convaincu), plutot que d'envoyer des messages generiques sans lien avec la conversation.
+- ✅ **Teste** : un test d'integration simule exactement le scenario signale (loup humain qui vote, puis change d'avis, puis l'exprime au chat) et verifie que le bot suit a chaque etape.
 
 ## Nouveautes V8 (toujours presentes)
 
-- 🎵 Vraie musique d'ambiance generative (menu / nuit / jour)
-- 🖱️ Bruitage de clic sur tous les boutons, 🗣️ voix du narrateur corrigee
-- 📱 Passe complete d'adaptation mobile
+- 🎵 Vraie musique d'ambiance generative (menu / nuit / jour), plus un simple bourdonnement
+- 🖱️ Bruitage de clic sur tous les boutons
+- 🗣️ Voix du narrateur corrigee (pitch naturel, meilleure selection de voix)
+- 📱 Passe complete d'adaptation mobile (plus de debordement horizontal, tailles fluides, HUD repense)
 
 ## Nouveautes V7 (toujours presentes)
 
-- 🐛 Correctif critique : la nuit se resout desormais toujours automatiquement une fois que tout le monde a fini.
+- 🐛 Correctif critique : la nuit se resout desormais toujours automatiquement (petit compte a rebours) une fois que tout le monde a fini.
 
 ## Nouveautes V5/V6 (toujours presentes)
 
@@ -40,6 +30,7 @@ Les bots participent naturellement : environ un tiers d'entre eux se portent can
 - 🐺 Les loups doivent vraiment se mettre d'accord sur UNE victime (consensus), avec chat privé qui s'active automatiquement
 - 🔮 La Voyante (et le Renard) voient vraiment leur résultat, avec un accusé de lecture avant de continuer
 - 🌙 La nuit n'a pas de minuteur pour les décisions ; seule la journée a une durée fixée à l'avance
+- 🔁 On peut changer d'avis (loups, votes, Salvateur, Corbeau, Loup Blanc) avant que l'étape ne soit validée
 
 ## Nouveautes V3/V4 (toujours presentes)
 
