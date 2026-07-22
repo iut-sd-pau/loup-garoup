@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LOUPS-GAROUS — En ligne</title>
+<meta name="description" content="Le jeu du Loup-Garou en ligne, multijoueur en temps réel, entre amis ou avec des inconnus.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="bg-fx"><div class="moon"></div><div class="fog"></div></div>
+
+<!-- ===================== TOAST / NOTIFS ===================== -->
+<div id="toast-container"></div>
+
+<!-- ===================== ECRAN 0 : ACCUEIL ===================== -->
+<section id="screen-home" class="screen active">
+  <div class="panel home-panel">
+    <div class="profile-bar">
+      <span id="profile-coins">🪙 0</span>
+      <button id="btn-open-shop" class="mini-btn">🛍️ Boutique & Avatar</button>
+    </div>
+    <h1 class="title">🐺 LOUPS-GAROUS</h1>
+    <p class="subtitle">Le village dort... ou presque.</p>
+
+    <div class="home-form">
+      <label class="field">
+        <span>Ton pseudo</span>
+        <input id="input-pseudo" type="text" maxlength="16" placeholder="Ex: Eudes">
+      </label>
+
+      <div class="home-actions">
+        <label class="field-inline public-toggle">
+          <span>🌍 Rendre ma partie publique (des inconnus pourront la rejoindre)</span>
+          <input type="checkbox" id="input-public-room">
+        </label>
+        <button id="btn-create-room" class="btn btn-primary">Créer une partie</button>
+        <div class="join-row">
+          <input id="input-room-code" type="text" maxlength="5" placeholder="CODE" class="code-input">
+          <button id="btn-join-room" class="btn btn-secondary">Rejoindre</button>
+        </div>
+      </div>
+      <p id="home-error" class="error-text"></p>
+    </div>
+
+    <div class="public-rooms-panel">
+      <div class="public-rooms-header">
+        <h3>🌍 Parties publiques ouvertes</h3>
+        <button id="btn-refresh-public" class="mini-btn">🔄</button>
+      </div>
+      <ul id="public-rooms-list" class="public-rooms-list">
+        <li class="public-room-empty">Aucune partie publique pour l'instant.</li>
+      </ul>
+      <button id="btn-quick-match" class="btn btn-secondary btn-large">🎲 Partie aléatoire (rejoindre n'importe laquelle)</button>
+    </div>
+
+    <button id="btn-how-to-play" class="link-btn">📖 Comment jouer ?</button>
+  </div>
+</section>
+
+<!-- ===================== ECRAN REGLES ===================== -->
+<section id="screen-rules" class="screen">
+  <div class="panel">
+    <h2>📖 Règles rapides</h2>
+    <div class="rules-content">
+      <p><strong>But du jeu :</strong> les Villageois doivent démasquer et éliminer tous les Loups-Garous. Les Loups doivent éliminer assez de villageois pour être à égalité ou en supériorité numérique.</p>
+      <p>Chaque tour se joue en deux temps :</p>
+      <ul>
+        <li>🌙 <strong>Nuit</strong> — les rôles spéciaux agissent en secret (les Loups choisissent une victime, la Voyante espionne, la Sorcière soigne ou empoisonne...).</li>
+        <li>☀️ <strong>Jour</strong> — le village découvre les événements de la nuit, débat au chat, puis vote pour éliminer un suspect.</li>
+      </ul>
+      <p>La partie se termine quand un camp l'emporte, ou si les amoureux (liés par Cupidon) sont les deux derniers vivants.</p>
+    </div>
+    <button class="btn btn-secondary" onclick="UI.showScreen('screen-home')">Retour</button>
+  </div>
+</section>
+
+<!-- ===================== ECRAN BOUTIQUE ===================== -->
+<section id="screen-shop" class="screen">
+  <div class="panel shop-panel">
+    <div class="shop-header">
+      <h2>🛍️ Boutique & Avatar</h2>
+      <span id="shop-coins" class="shop-coins">🪙 0</span>
+    </div>
+
+    <div class="shop-preview">
+      <div class="avatar-preview-circle" id="avatar-preview-circle">
+        <span id="avatar-preview-emoji">🧑‍🌾</span>
+        <span id="avatar-preview-hat" class="avatar-preview-hat"></span>
+      </div>
+      <div class="avatar-preview-info">
+        <div id="avatar-preview-name" class="avatar-preview-name">Toi</div>
+        <div id="avatar-preview-title" class="avatar-preview-title"></div>
+      </div>
+    </div>
+
+    <div class="shop-tabs">
+      <button class="shop-tab active" data-cat="hat">🎩 Chapeaux</button>
+      <button class="shop-tab" data-cat="frame">🖼️ Cadres</button>
+      <button class="shop-tab" data-cat="nameColor">🎨 Couleurs</button>
+      <button class="shop-tab" data-cat="title">🏷️ Titres</button>
+      <button class="shop-tab" data-cat="achievements">🏆 Succès</button>
+    </div>
+
+    <div id="shop-items-grid" class="shop-items-grid"></div>
+
+    <button class="btn btn-secondary" onclick="UI.showScreen('screen-home')">Retour</button>
+  </div>
+</section>
+
+<!-- ===================== ECRAN LOBBY ===================== -->
+<section id="screen-lobby" class="screen">
+  <div class="panel lobby-panel">
+    <div class="lobby-header">
+      <div>
+        <h2>Salle d'attente</h2>
+        <div class="room-code-display">Code : <span id="lobby-room-code">----</span> <button id="btn-copy-code" class="mini-btn" title="Copier le code">📋</button> <button id="btn-copy-link" class="mini-btn" title="Copier le lien d'invitation">🔗 Lien d'invitation</button></div>
+      </div>
+      <button id="btn-leave-room" class="mini-btn danger">Quitter</button>
+    </div>
+
+    <div class="lobby-body">
+      <div class="lobby-players">
+        <h3>Joueurs (<span id="lobby-player-count">0</span> / 50)</h3>
+        <ul id="lobby-player-list" class="player-list"></ul>
+        <div id="bot-controls" class="bot-controls">
+          <button id="btn-add-bot" class="mini-btn">🤖 + Ajouter un bot</button>
+          <button id="btn-remove-bot" class="mini-btn">🤖 − Retirer un bot</button>
+          <div class="bot-fill-row">
+            <input type="number" id="input-fill-total" min="1" max="50" value="8" class="fill-input">
+            <button id="btn-fill-bots" class="mini-btn">Compléter jusqu'à ce total avec des bots</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="lobby-settings" id="lobby-settings-host">
+        <h3>Réglages (Hôte)</h3>
+        <label class="field-inline">
+          <span>Voyante</span><input type="checkbox" id="role-toggle-voyante" checked>
+        </label>
+        <label class="field-inline">
+          <span>Sorcière</span><input type="checkbox" id="role-toggle-sorciere" checked>
+        </label>
+        <label class="field-inline">
+          <span>Chasseur</span><input type="checkbox" id="role-toggle-chasseur" checked>
+        </label>
+        <label class="field-inline">
+          <span>Cupidon</span><input type="checkbox" id="role-toggle-cupidon" checked>
+        </label>
+        <label class="field-inline">
+          <span>Petite Fille</span><input type="checkbox" id="role-toggle-petitefille" checked>
+        </label>
+        <label class="field-inline">
+          <span>Salvateur (protège 1 joueur/nuit)</span><input type="checkbox" id="role-toggle-salvateur">
+        </label>
+        <label class="field-inline">
+          <span>Bouc émissaire</span><input type="checkbox" id="role-toggle-boucemissaire">
+        </label>
+        <label class="field-inline">
+          <span>👑 Élection d'un Maire (vote x2)</span><input type="checkbox" id="role-toggle-maire">
+        </label>
+        <label class="field-inline">
+          <span>🤪 Idiot du Village</span><input type="checkbox" id="role-toggle-idiot_village">
+        </label>
+        <label class="field-inline">
+          <span>🧓 Ancien (2 vies)</span><input type="checkbox" id="role-toggle-ancien">
+        </label>
+        <label class="field-inline">
+          <span>🐦‍⬛ Corbeau</span><input type="checkbox" id="role-toggle-corbeau">
+        </label>
+        <label class="field-inline">
+          <span>🦊 Renard</span><input type="checkbox" id="role-toggle-renard">
+        </label>
+        <label class="field-inline">
+          <span>🗡️ Voleur</span><input type="checkbox" id="role-toggle-voleur">
+        </label>
+        <label class="field-inline">
+          <span>🐺❄️ Loup Blanc (solo)</span><input type="checkbox" id="role-toggle-loup_blanc">
+        </label>
+        <label class="field-inline">
+          <span>🎙️ Tour de parole au débat</span><input type="checkbox" id="role-toggle-tourDeParole" checked>
+        </label>
+        <label class="field-inline">
+          <span>Durée débat (jour)</span>
+          <select id="day-duration-select">
+            <option value="90">90s</option>
+            <option value="120" selected>120s</option>
+            <option value="180">180s</option>
+            <option value="300">300s</option>
+          </select>
+        </label>
+        <p class="hint" id="role-count-hint"></p>
+      </div>
+    </div>
+
+    <button id="btn-start-game" class="btn btn-primary btn-large" disabled>Lancer la partie (5 joueurs min.)</button>
+    <p id="lobby-waiting" class="hint">En attente que l'hôte lance la partie...</p>
+  </div>
+</section>
+
+<!-- ===================== ECRAN REVEAL ROLE ===================== -->
+<section id="screen-role-reveal" class="screen">
+  <div class="panel role-reveal-panel">
+    <p class="reveal-label">Ton rôle est...</p>
+    <div id="role-card" class="role-card">
+      <div class="role-icon" id="role-icon">🐺</div>
+      <h2 id="role-name">???</h2>
+      <p id="role-desc"></p>
+      <p id="role-team-tag" class="team-tag"></p>
+    </div>
+    <div id="lovers-info" class="lovers-info hidden"></div>
+    <button id="btn-role-continue" class="btn btn-primary">J'ai compris, entrons dans la nuit</button>
+  </div>
+</section>
+
+<!-- ===================== ECRAN JEU (nuit/jour) ===================== -->
+<section id="screen-game" class="screen">
+  <div class="game-layout">
+
+    <!-- HUD -->
+    <header class="game-hud">
+      <div class="hud-phase">
+        <span id="hud-phase-icon">🌙</span>
+        <div>
+          <div id="hud-phase-title">Nuit 1</div>
+          <div id="hud-timer" class="hud-timer"></div>
+        </div>
+      </div>
+      <div class="hud-role">
+        <button id="btn-toggle-narrator" class="mini-btn" title="Activer/couper le narrateur">🗣️</button>
+        <button id="btn-toggle-sfx" class="mini-btn" title="Activer/couper les sons">🔊</button>
+        <input type="range" id="sfx-volume" min="0" max="100" value="35" class="volume-slider" title="Volume">
+        <span id="hud-role-icon">🐺</span>
+        <span id="hud-role-name">Rôle</span>
+        <button id="btn-role-reminder" class="mini-btn" title="Revoir mon rôle">🎭</button>
+        <span id="hud-alive-status" class="alive-badge">Vivant</span>
+      </div>
+    </header>
+
+    <div class="game-main">
+      <!-- Zone centrale : actions / vote -->
+      <div class="game-center">
+        <div id="action-progress" class="action-progress hidden"></div>
+        <div id="narration-box" class="narration-box"></div>
+        <div id="action-zone" class="action-zone"></div>
+
+        <div class="players-grid-wrap">
+          <div id="reaction-fly-zone" class="reaction-fly-zone"></div>
+          <div class="players-grid" id="players-grid"></div>
+        </div>
+
+        <div class="reaction-bar" id="reaction-bar">
+          <button data-emoji="😱">😱</button>
+          <button data-emoji="😂">😂</button>
+          <button data-emoji="🤔">🤔</button>
+          <button data-emoji="👀">👀</button>
+          <button data-emoji="🔥">🔥</button>
+          <button data-emoji="❤️">❤️</button>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <aside class="game-chat">
+        <div class="chat-tabs">
+          <button class="chat-tab active" data-channel="village">💬 Village</button>
+          <button class="chat-tab hidden" id="tab-wolves" data-channel="wolves">🐺 Loups</button>
+          <button class="chat-tab hidden" id="tab-dead" data-channel="dead">💀 Fantômes</button>
+        </div>
+        <div id="speaker-indicator" class="speaker-indicator hidden">
+          <span id="speaker-indicator-text"></span>
+          <button id="btn-skip-turn" class="mini-btn hidden">⏭️ Passer mon tour</button>
+        </div>
+        <div id="speaker-upnext" class="speaker-upnext hidden"></div>
+        <div id="chat-messages" class="chat-messages"></div>
+        <div class="chat-input-row">
+          <input id="chat-input" type="text" maxlength="200" placeholder="Écrire un message...">
+          <button id="btn-chat-send" class="mini-btn">➤</button>
+        </div>
+      </aside>
+    </div>
+
+    <div id="event-log-toggle" class="event-log-toggle">📜 Journal</div>
+    <div id="event-log" class="event-log hidden"></div>
+  </div>
+</section>
+
+<!-- ===================== ECRAN FIN ===================== -->
+<section id="screen-end" class="screen">
+  <div id="confetti-container" class="confetti-container"></div>
+  <div class="panel end-panel">
+    <h2 id="end-title">Fin de partie</h2>
+    <p id="end-subtitle"></p>
+    <div id="reward-recap" class="reward-recap hidden"></div>
+    <div id="end-roles-list" class="end-roles-list"></div>
+    <button id="btn-back-home" class="btn btn-primary">Retour à l'accueil</button>
+  </div>
+</section>
+
+<!-- Firebase SDK (compat, simple à utiliser) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script src="js/firebase-config.js"></script>
+<script src="js/roles.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/narrator.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/shop.js"></script>
+<script src="js/host-engine.js"></script>
+<script src="js/bots.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
