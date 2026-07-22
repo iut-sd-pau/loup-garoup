@@ -8,19 +8,64 @@
    existence.
    ============================================================ */
 
-const CHAT_LINES = [
-  "Franchement je soupçonne {name}...",
-  "Moi je fais confiance à {name} pour l'instant.",
-  "On devrait surveiller les votes de {name}.",
-  "{name} est bizarrement silencieux(se), non ?",
-  "Je pense qu'on part sur une mauvaise piste.",
-  "Qui a des arguments concrets contre {name} ?",
-  "Perso je m'abstiens de juger trop vite.",
-  "{name}, tu en penses quoi toi ?",
-  "On a déjà perdu trop de monde, faut être malins.",
-  "Je change d'avis, je pense que c'est {name}.",
-  "Rien de louche de mon côté, promis !",
-  "Il nous reste peu de temps, faut se décider.",
+// Mots-cles utilises pour deviner le ton d'un message recu (suspicion,
+// confiance, question) afin que la reponse du bot y soit vraiment liee,
+// plutot que d'envoyer une phrase generique sans rapport.
+const SUSPICION_WORDS = ['louche', 'suspect', 'bizarre', 'loup', 'menteur', 'me méfie', 'me mefie', 'soupçonne', 'soupconne', 'cache quelque chose', 'pas net'];
+const TRUST_WORDS = ['confiance', 'innocent', 'sûr de', 'sur de', 'pas lui', 'pas elle', 'clean', 'blanc', 'clair'];
+
+const WOLF_HINT_LINES = [
+  "Je ne sais pas pourquoi mais {name} m'inspire pas confiance.",
+  "Perso je surveillerais {name} de près.",
+  "{name}, tu m'as pas convaincu(e) hier soir.",
+  "Y'a un truc qui cloche avec {name}, je saurais pas dire quoi.",
+  "Franchement je me méfierais de {name} si j'étais vous.",
+  "J'ai un mauvais pressentiment sur {name}, sans preuve concrète."
+];
+const INNOCENT_HINT_LINES = [
+  "Je pense qu'on peut faire confiance à {name}, perso.",
+  "{name} ne me semble pas être le problème ici.",
+  "Bizarrement {name} m'inspire confiance.",
+  "Je mettrais pas ma main à couper, mais {name} m'a l'air clean.",
+  "On ferait mieux de chercher ailleurs que du côté de {name}."
+];
+const DEATH_LINES = [
+  "Depuis la mort de {name}, je fais moins confiance à personne.",
+  "On a perdu {name} cette nuit, faut pas se planter maintenant.",
+  "{name} nous manque déjà, essayons de pas refaire la même erreur.",
+  "La mort de {name} me fait bien réfléchir sur qui accuser."
+];
+const REACT_SUSPICIOUS_LINES = [
+  "Ouais, {name} m'a paru louche aussi.",
+  "Je suis d'accord, on devrait garder un œil sur {name}.",
+  "Hmm, pas totalement convaincu(e) pour {name}, mais je note.",
+  "Intéressant, pourquoi tu penses ça sur {name} ?"
+];
+const REACT_TRUSTING_LINES = [
+  "Ok si tu le dis, je fais confiance à {name} alors.",
+  "Pas sûr, je reste prudent(e) avec {name} quand même.",
+  "{name} m'a pas donné de raison de douter non plus."
+];
+const REACT_QUESTION_LINES = [
+  "Bonne question, j'y ai pas encore réfléchi.",
+  "Franchement je sais pas, on manque d'infos.",
+  "Difficile à dire pour l'instant."
+];
+const GENERIC_EARLY_LINES = [
+  "On a encore peu d'infos, faut faire attention à pas accuser au hasard.",
+  "Premier jour, je préfère observer avant de me prononcer.",
+  "Qui a des arguments concrets contre quelqu'un ?"
+];
+const GENERIC_LATE_LINES = [
+  "On n'a plus trop le temps de tergiverser.",
+  "Il va falloir trancher, on peut pas se permettre une autre erreur.",
+  "Le village se réduit, chaque vote compte double maintenant."
+];
+const GENERIC_NAME_LINES = [
+  "Je me demande ce qu'a fait {name} hier soir.",
+  "{name}, t'en penses quoi toi ?",
+  "On devrait écouter {name} avant de voter.",
+  "Qui a un avis sur {name} ?"
 ];
 
 const BotController = {
@@ -28,6 +73,7 @@ const BotController = {
   ref: null,
   scheduled: new Set(),
   chatRoundsHandled: new Set(),
+  _lastBotToBotReply: 0,
 
   start(roomCode) {
     this.roomCode = roomCode;
@@ -47,7 +93,9 @@ const BotController = {
     const bots = Object.entries(room.players || {}).filter(([id, p]) => p.isBot && p.alive);
     if (bots.length === 0) return;
 
-    if (room.status === 'mayor-election') this.handleMayorElection(room, bots);
+    if (room.status === 'mayor-candidacy') this.handleMayorCandidacy(room, bots);
+    else if (room.status === 'mayor-speeches') this.handleMayorSpeeches(room, bots);
+    else if (room.status === 'mayor-election') this.handleMayorElection(room, bots);
     else if (room.status === 'night') this.handleNight(room, bots);
     else if (room.status === 'day-vote') this.handleDayVote(room, bots);
     else if (room.status === 'hunter') this.handleHunter(room, bots);
@@ -67,8 +115,63 @@ const BotController = {
     return Object.entries(room.players || {}).filter(([id, p]) => p.alive && id !== excludeId).map(([id]) => id);
   },
 
+  // ============ CANDIDATURE AU POSTE DE MAIRE ============
+  handleMayorCandidacy(room, bots) {
+    const speeches = [
+      "Je serais un bon Maire, j'ai l'esprit d'analyse.",
+      "Franchement, personne ne se lance ? Je veux bien essayer.",
+      "Je pense pouvoir aider le village a garder son calme.",
+      "Allez, je me presente, on verra bien !"
+    ];
+    bots.forEach(([id, p]) => {
+      const key = `candidacy-${id}`;
+      if (room.candidacyResponses && room.candidacyResponses[id] !== undefined) return;
+      this.once(key, async () => {
+        const fresh = (await this.ref.once('value')).val();
+        if (!fresh || fresh.status !== 'mayor-candidacy') return;
+        if (fresh.candidacyResponses && fresh.candidacyResponses[id] !== undefined) return;
+        const runs = Math.random() < 0.35; // la plupart des bots ne se presentent pas, comme des humains timides
+        await this.ref.update({ [`mayorCandidates/${id}`]: runs, [`candidacyResponses/${id}`]: true });
+      }, 2000, 15000);
+    });
+  },
+
+  // ============ DISCOURS DE CANDIDATURE ============
+  handleMayorSpeeches(room, bots) {
+    const speech = room.mayorSpeech || {};
+    const order = speech.order || [];
+    const speakerId = order[speech.index || 0];
+    const speakerBot = bots.find(([id]) => id === speakerId);
+    if (!speakerBot) return;
+    const [id, p] = speakerBot;
+    const key = `speech-${speech.index || 0}-${id}`;
+    const lines = [
+      "Je pense avoir la tete froide qu'il faut pour ce role. Votez pour moi !",
+      "J'ecoute tout le monde avant de trancher, je crois que c'est ce qu'il faut au village.",
+      "Je n'ai rien a cacher, et je ferai de mon mieux pour le village.",
+      "Faites-moi confiance, je prendrai les votes serieusement.",
+      "Je serai juste et j'ecouterai les arguments de chacun."
+    ];
+    this.once(key, async () => {
+      const fresh = (await this.ref.once('value')).val();
+      if (!fresh || fresh.status !== 'mayor-speeches') return;
+      const freshSpeech = fresh.mayorSpeech || {};
+      if ((freshSpeech.order || [])[freshSpeech.index || 0] !== id) return;
+      await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: id, name: p.name, text: this.randomFrom(lines), channel: 'village', ts: Date.now() });
+      // termine son discours peu apres, pas la peine de faire attendre tout le monde 20s
+      setTimeout(async () => {
+        const f2 = (await this.ref.once('value')).val();
+        if (!f2 || f2.status !== 'mayor-speeches') return;
+        const s2 = f2.mayorSpeech || {};
+        if ((s2.order || [])[s2.index || 0] !== id) return;
+        await this.ref.child('mayorSpeech/skipRequested').set(id);
+      }, 2500 + Math.random() * 2000);
+    }, 1500, 4000);
+  },
+
   // ============ ELECTION DU MAIRE ============
   handleMayorElection(room, bots) {
+    const pool = room.mayorPool && room.mayorPool.length ? room.mayorPool : this.otherAliveIds(room, null);
     bots.forEach(([id]) => {
       const key = `mayor-${id}`;
       if (room.mayorVotes && room.mayorVotes[id]) return;
@@ -76,7 +179,9 @@ const BotController = {
         const fresh = (await this.ref.once('value')).val();
         if (!fresh || fresh.status !== 'mayor-election') return;
         if (fresh.mayorVotes && fresh.mayorVotes[id]) return;
-        const target = this.randomFrom(this.otherAliveIds(fresh, null));
+        const freshPool = fresh.mayorPool && fresh.mayorPool.length ? fresh.mayorPool : this.otherAliveIds(fresh, null);
+        const validPool = freshPool.filter(pid => fresh.players[pid] && fresh.players[pid].alive);
+        const target = this.randomFrom(validPool.length ? validPool : this.otherAliveIds(fresh, null));
         if (target) await this.ref.child(`mayorVotes/${id}`).set(target);
       });
     });
@@ -127,6 +232,7 @@ const BotController = {
           if (fresh.night.seerTarget) return;
           const target = this.randomFrom(this.otherAliveIds(fresh, id));
           if (target) await this.ref.child('night').update({ seerTarget: target, seerAck: true });
+          if (target) await this.ref.child(`players/${id}/knowledge/${target}`).set(fresh.players[target].role);
         });
       } else if (step === 'sorciere' && p.role === 'sorciere') {
         if (night.witchDecided) return;
@@ -297,44 +403,103 @@ const BotController = {
     });
   },
 
+  // ============ GENERATION DE DIALOGUE CONTEXTUEL ============
+  detectSentiment(text) {
+    const lower = text.toLowerCase();
+    if (lower.includes('?')) return 'question';
+    if (SUSPICION_WORDS.some(w => lower.includes(w))) return 'suspicious';
+    if (TRUST_WORDS.some(w => lower.includes(w))) return 'trusting';
+    return 'neutral';
+  },
+
+  fillName(line, name) { return line.replace('{name}', name); },
+
+  // Construit une ligne de chat qui a un vrai lien avec l'instant present :
+  // un indice tire d'une info que le bot possede vraiment (sans jamais
+  // denoncer frontalement), une reaction au message recu, une reference a
+  // une mort recente, ou a defaut une ligne generique adaptee au round.
+  buildVillageLine(room, botId, botP, replyCtx) {
+    const others = this.otherAliveIds(room, botId).map(pid => room.players[pid].name);
+    const knowledge = (room.players[botId] && room.players[botId].knowledge) || {};
+    const hintsGiven = (room.players[botId] && room.players[botId].hintsGiven) || {};
+    const unusedKnowledge = Object.entries(knowledge).filter(([tid, role]) => room.players[tid] && room.players[tid].alive && !hintsGiven[tid]);
+
+    const roll = Math.random();
+
+    // Aide sans denoncer : un indice discret tire d'une info reellement connue
+    if (unusedKnowledge.length && roll < 0.3) {
+      const [targetId, role] = this.randomFrom(unusedKnowledge);
+      const isWolfy = role === 'loup_garou' || role === 'loup_blanc';
+      const line = this.fillName(this.randomFrom(isWolfy ? WOLF_HINT_LINES : INNOCENT_HINT_LINES), room.players[targetId].name);
+      return { text: line, usedHintTarget: targetId };
+    }
+
+    // Reponse a ce qui vient d'etre dit, quand ca a un sens
+    if (replyCtx && replyCtx.mentioned) {
+      const sentiment = this.detectSentiment(replyCtx.text);
+      const pool = sentiment === 'suspicious' ? REACT_SUSPICIOUS_LINES
+        : sentiment === 'trusting' ? REACT_TRUSTING_LINES
+        : sentiment === 'question' ? REACT_QUESTION_LINES
+        : null;
+      if (pool) return { text: this.fillName(this.randomFrom(pool), replyCtx.mentioned) };
+    }
+
+    // Reference a la mort la plus recente, pour ancrer la conversation dans le moment
+    const logEntries = Object.values(room.log || {}).sort((a, b) => b.ts - a.ts);
+    const deathEntry = logEntries.find(l => l.text && l.text.includes('\ud83d\udc80'));
+    if (deathEntry && roll < 0.55) {
+      const deadNames = Object.values(room.players).filter(pp => !pp.alive).map(pp => pp.name);
+      const deadName = this.findMentionedName(deathEntry.text, deadNames);
+      if (deadName) return { text: this.fillName(this.randomFrom(DEATH_LINES), deadName) };
+    }
+
+    // A defaut, une ligne generique mais adaptee au moment de la partie
+    const name = this.randomFrom(others) || 'quelqu\'un';
+    const pool = room.round >= 3 ? GENERIC_LATE_LINES.concat(GENERIC_NAME_LINES) : GENERIC_EARLY_LINES.concat(GENERIC_NAME_LINES);
+    return { text: this.fillName(this.randomFrom(pool), name) };
+  },
+
+  async sendVillageLine(botId, botP, replyCtx) {
+    const fresh = (await this.ref.once('value')).val();
+    if (!fresh || fresh.status !== 'day-discuss') return;
+    if (!fresh.players[botId] || !fresh.players[botId].alive) return;
+    if (fresh.day && fresh.day.speakerPhase === 'turns') {
+      const speaker = fresh.day.speakOrder[fresh.day.speakerIndex];
+      if (speaker !== botId) return; // respecte le tour de parole
+    }
+    const result = this.buildVillageLine(fresh, botId, botP, replyCtx);
+    await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: botId, name: botP.name, text: result.text, channel: 'village', ts: Date.now() });
+    if (result.usedHintTarget) {
+      await this.ref.child(`players/${botId}/hintsGiven/${result.usedHintTarget}`).set(true);
+    }
+  },
+
   async reactToVillageChat(msg) {
     const room = (await this.ref.once('value')).val();
     if (!room || room.status !== 'day-discuss') return;
     const author = room.players[msg.pid];
-    if (!author || author.isBot) return;
+    if (!author) return;
 
-    const bots = Object.entries(room.players).filter(([id, pp]) => pp.isBot && pp.alive);
+    const bots = Object.entries(room.players).filter(([id, pp]) => pp.isBot && pp.alive && id !== msg.pid);
     if (bots.length === 0) return;
-    if (Math.random() > 0.4) return; // ne reagit pas a chaque message, sinon ca spam
+
+    // Un bot reagit plus volontiers a un humain qu'a un autre bot, et on
+    // limite les echanges bot<->bot dans le temps pour eviter un dialogue
+    // en boucle qui tournerait en rond sans les joueurs humains.
+    if (author.isBot) {
+      if (Math.random() > 0.18) return;
+      if (Date.now() - this._lastBotToBotReply < 14000) return;
+    } else {
+      if (Math.random() > 0.45) return;
+    }
 
     const names = Object.values(room.players).filter(pp => pp.alive).map(pp => pp.name);
     const mentioned = this.findMentionedName(msg.text, names.filter(n => n !== author.name));
-    const [botId, botP] = bots[Math.floor(Math.random() * bots.length)];
+    const [botId, botP] = this.randomFrom(bots);
+    if (author.isBot) this._lastBotToBotReply = Date.now();
 
     const delay = 1500 + Math.random() * 4000;
-    setTimeout(async () => {
-      const fresh = (await this.ref.once('value')).val();
-      if (!fresh || fresh.status !== 'day-discuss') return;
-      if (fresh.day && fresh.day.speakerPhase === 'turns') {
-        const speaker = fresh.day.speakOrder[fresh.day.speakerIndex];
-        if (speaker !== botId) return; // respecte le tour de parole
-      }
-      let line;
-      if (mentioned && Math.random() < 0.65) {
-        const reactions = [
-          `Je suis d'accord avec toi sur ${mentioned}.`,
-          `Ouais, ${mentioned} m'a paru louche aussi.`,
-          `Pas convaincu pour ${mentioned}, mais pourquoi pas.`,
-          `Hmm, je verrais plutot ailleurs que ${mentioned}, mais j'ecoute.`,
-          `${mentioned} ? Interessant, dis-en plus.`
-        ];
-        line = this.randomFrom(reactions);
-      } else {
-        const others = names.filter(n => n !== botP.name);
-        line = this.randomFrom(CHAT_LINES).replace('{name}', this.randomFrom(others) || 'quelqu\'un');
-      }
-      await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: botId, name: botP.name, text: line, channel: 'village', ts: Date.now() });
-    }, delay);
+    setTimeout(() => this.sendVillageLine(botId, botP, { text: msg.text, mentioned }), delay);
   },
 
   // ============ VOTE DE JOUR ============
@@ -391,19 +556,7 @@ const BotController = {
       const msgCount = 1 + Math.floor(Math.random() * 2);
       for (let i = 0; i < msgCount; i++) {
         const delay = 1500 + Math.random() * Math.max(3000, remaining - 3000);
-        setTimeout(async () => {
-          const fresh = (await this.ref.once('value')).val();
-          if (!fresh || fresh.status !== 'day-discuss') return;
-          if (!fresh.players[id] || !fresh.players[id].alive) return;
-          if (fresh.day && fresh.day.speakerPhase === 'turns') {
-            const currentSpeaker = fresh.day.speakOrder[fresh.day.speakerIndex];
-            if (currentSpeaker !== id) return;
-          }
-          const others = this.otherAliveIds(fresh, id).map(pid => fresh.players[pid].name);
-          const name = this.randomFrom(others) || 'quelqu\'un';
-          const line = this.randomFrom(CHAT_LINES).replace('{name}', name);
-          await db.ref(`rooms/${this.roomCode}/chat`).push({ pid: id, name: p.name, text: line, channel: 'village', ts: Date.now() });
-        }, delay);
+        setTimeout(() => this.sendVillageLine(id, p, null), delay);
       }
     });
   }

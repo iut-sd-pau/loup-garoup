@@ -1,36 +1,39 @@
-# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V9)
+# 🐺 LOUPS-GAROUS NOUVELLE GENERATION — En ligne (V11)
 
 Jeu du Loup-Garou multijoueur en temps réel, jouable dans le navigateur, entre amis, avec des inconnus, ou avec des bots. De 1 a 50 joueurs.
 
-## V9 — Les bots ecoutent et suivent vraiment les loups humains
+## V11 — Des bots qui parlent vraiment comme des humains
 
-Correctif cible sur un vrai probleme signale : dans le chat prive des loups, un loup humain qui demandait de changer de cible n'etait pas suivi par le bot, qui forcait l'inverse (le joueur humain devait s'aligner sur le bot au lieu du contraire).
+Refonte complete du dialogue des bots en journee, pour que ca ressemble a une vraie conversation plutot qu'a des phrases toutes faites sans rapport avec la partie :
 
-- 🐺 **Priorite systematique au loup humain** : dans un groupe de loups mixte (humain + bots), les bots se rallient desormais TOUJOURS au choix du loup humain plutot qu'a un choix de bot ou a un tirage au sort. S'il n'y a que des bots, ils convergent entre eux comme avant.
-- 🔁 **Reconciliation continue** : si le loup humain change d'avis en cours de nuit, les bots s'en apercoivent et changent de cible avec lui — ce n'etait pas le cas avant (les bots ne votaient qu'une seule fois et n'y revenaient jamais).
-- 💬 **Vraie ecoute du chat des loups** : quand un loup humain ecrit un message dans le chat prive mentionnant le nom d'une cible, les bots-loups le "lisent", changent leur vote pour suivre cette suggestion, et repondent naturellement dans le chat ("D'accord, va pour {nom}.", "Ok, je change pour {nom}."), au lieu de rester silencieux et robotiques.
-- 💬 **Chat du village plus vivant** : les bots reagissent parfois (pas a chaque message, pour ne pas spammer) aux messages des joueurs humains en journee, en mentionnant le nom cite et en donnant un avis (d'accord / pas convaincu), plutot que d'envoyer des messages generiques sans lien avec la conversation.
-- ✅ **Teste** : un test d'integration simule exactement le scenario signale (loup humain qui vote, puis change d'avis, puis l'exprime au chat) et verifie que le bot suit a chaque etape.
+- 🔍 **Aider sans dénoncer** : la Voyante (bot) qui a sondé quelqu'un et découvert que c'est un loup ne va JAMAIS l'annoncer frontalement ("c'est un loup !"). Elle glisse plutôt un soupçon discret et humain ("j'ai un mauvais pressentiment sur {nom}", "je me méfierais de {nom} si j'étais vous..."), exactement comme le ferait un joueur qui préfère orienter le village sans se griller. A l'inverse, si son info est rassurante, elle défend discrètement la personne. Testé : aucun indice ne mentionne jamais explicitement le rôle découvert.
+- 💬 **Vraies réponses, pas des phrases hors-sujet** : chaque message d'un bot est désormais généré à partir de ce qui se passe réellement — une réaction à ce que le dernier message disait (suspicion, confiance, question), une référence à la mort de la nuit précédente, ou une remarque adaptée au stade de la partie (début prudent vs fin de partie tendue). Fini les lignes génériques sans lien avec le moment.
+- 🔁 **Les bots se répondent aussi entre eux** : avant, un bot ignorait systématiquement les messages d'un autre bot (pour éviter les boucles). Il peut désormais occasionnellement réagir à un autre bot aussi (avec une limite pour ne pas partir en boucle infinie et laisser la place aux humains), ce qui donne une vraie ambiance de village qui discute plutôt que des monologues isolés.
+- ✅ **Testé** : détection du ton d'un message, indices qui ne dénoncent jamais explicitement, réponses liées au message reçu, réaction aux morts récentes — tout est vérifié par un test automatisé.
+
+## Nouveautes V10 (toujours presentes)
+
+- 🎗️ Élection du Maire enrichie : candidature facultative, discours à tour de rôle, vote parmi les candidats
+
+## Nouveautes V9 (toujours presentes)
+
+- 🐺 Les bots-loups priorisent et suivent toujours le choix d'un loup humain, y compris s'il change d'avis ou l'exprime dans le chat privé
 
 ## Nouveautes V8 (toujours presentes)
 
-- 🎵 Vraie musique d'ambiance generative (menu / nuit / jour), plus un simple bourdonnement
-- 🖱️ Bruitage de clic sur tous les boutons
-- 🗣️ Voix du narrateur corrigee (pitch naturel, meilleure selection de voix)
-- 📱 Passe complete d'adaptation mobile (plus de debordement horizontal, tailles fluides, HUD repense)
+- 🎵 Vraie musique d'ambiance generative, 🖱️ bruitage de clic, 🗣️ voix du narrateur corrigee, 📱 adaptation mobile complete
 
 ## Nouveautes V7 (toujours presentes)
 
-- 🐛 Correctif critique : la nuit se resout desormais toujours automatiquement (petit compte a rebours) une fois que tout le monde a fini.
+- 🐛 Correctif critique : la nuit se resout desormais toujours automatiquement une fois que tout le monde a fini.
 
 ## Nouveautes V5/V6 (toujours presentes)
 
 - 🪙 Monnaie gagnée en jouant (pas d'argent réel) + boutique cosmétique 100% visuelle
 - 🏆 7 succès à débloquer, 🔗 lien d'invitation, ✂️ exclure un joueur (hôte), 🔉 volume ajustable
-- 🐺 Les loups doivent vraiment se mettre d'accord sur UNE victime (consensus), avec chat privé qui s'active automatiquement
-- 🔮 La Voyante (et le Renard) voient vraiment leur résultat, avec un accusé de lecture avant de continuer
+- 🐺 Les loups doivent vraiment se mettre d'accord sur UNE victime (consensus)
+- 🔮 La Voyante (et le Renard) voient vraiment leur résultat, avec un accusé de lecture
 - 🌙 La nuit n'a pas de minuteur pour les décisions ; seule la journée a une durée fixée à l'avance
-- 🔁 On peut changer d'avis (loups, votes, Salvateur, Corbeau, Loup Blanc) avant que l'étape ne soit validée
 
 ## Nouveautes V3/V4 (toujours presentes)
 
