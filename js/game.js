@@ -424,8 +424,15 @@ function handlePhaseTransitionFx(room, prevStatus) {
   } else if (room.status === 'hunter') {
     SFX.death();
     Narrator.say("Le Chasseur, dans son dernier souffle, arme son arc...", { interrupt: true });
-  } else if (room.status === 'mayor-election') {
+  } else if (room.status === 'mayor-candidacy') {
     SFX.magicSparkle();
+    Narrator.say("Qui souhaite se présenter au poste de Maire ?", { interrupt: true });
+  } else if (room.status === 'mayor-speeches') {
+    SFX.click();
+    const speaker = room.mayorSpeech && room.players[room.mayorSpeech.order[room.mayorSpeech.index]];
+    Narrator.say(speaker ? `${speaker.name} prend la parole pour convaincre le village.` : "Les candidats prennent la parole.", { interrupt: true });
+  } else if (room.status === 'mayor-election') {
+    SFX.drumroll();
     Narrator.say("Le village doit désormais élire son Maire.", { interrupt: true });
   } else if (room.status === 'mayor-succession') {
     Narrator.say("Le Maire, avant de mourir, désigne son successeur.", { interrupt: true });
@@ -623,7 +630,7 @@ async function startGame() {
 
   const fresh = (await db.ref(`rooms/${State.roomCode}`).once('value')).val();
   if (settings.maire) {
-    await db.ref(`rooms/${State.roomCode}`).update({ status: 'mayor-election', mayorVotes: null, phaseEndsAt: Date.now() + 35000 });
+    await HostEngine.startMayorCandidacy(fresh);
   } else {
     await HostEngine.startNight(fresh, 1);
   }
@@ -758,7 +765,13 @@ function flyReaction(emoji) {
 
 /* ---------------- TOUR DE PAROLE ---------------- */
 function isMySpeakingTurn(room) {
-  if (!room || room.status !== 'day-discuss') return true;
+  if (!room) return true;
+  if (room.status === 'mayor-speeches') {
+    const speech = room.mayorSpeech || {};
+    const order = speech.order || [];
+    return order[speech.index || 0] === State.playerId;
+  }
+  if (room.status !== 'day-discuss') return true;
   const day = room.day || {};
   if (!day.speakOrder || day.speakerPhase === 'free') return true;
   return day.speakOrder[day.speakerIndex] === State.playerId;
@@ -906,6 +919,8 @@ function renderPhaseHud(room) {
     'day-discuss': ['☀️', `Débat — Jour ${room.round}`],
     'day-vote': ['🗳️', `Vote — Jour ${room.round}`],
     'hunter': ['🏹', `Le Chasseur tire`],
+    'mayor-candidacy': ['🗳️', `Candidature au poste de Maire`],
+    'mayor-speeches': ['🎤', `Discours des candidats`],
     'mayor-election': ['👑', `Élection du Maire`],
     'mayor-succession': ['👑', `Succession du Maire`],
     'starting': ['🎬', `La partie démarre...`]
@@ -931,11 +946,75 @@ function renderNarrationAndActions(room, me) {
     return;
   }
 
+  if (room.status === 'mayor-candidacy') {
+    if (me.alive) {
+      const myResponse = room.candidacyResponses && room.candidacyResponses[State.playerId];
+      const candidatesSoFar = Object.entries(room.players).filter(([id,p]) => room.mayorCandidates && room.mayorCandidates[id]).map(([id,p]) => p.name);
+      narrationBox.textContent = "🗳️ Le village va élire un Maire, dont le vote comptera double. Veux-tu te présenter ? Ce n'est pas obligatoire !";
+      if (candidatesSoFar.length) {
+        const note = document.createElement('p');
+        note.className = 'action-hint';
+        note.textContent = `Se sont déjà présenté(e)s : ${candidatesSoFar.join(', ')}`;
+        actionZone.appendChild(note);
+      }
+      if (myResponse === undefined) {
+        const yesBtn = document.createElement('button');
+        yesBtn.className = 'btn btn-primary';
+        yesBtn.textContent = '🎗️ Je me présente !';
+        yesBtn.onclick = async () => {
+          await db.ref(`rooms/${State.roomCode}`).update({ [`mayorCandidates/${State.playerId}`]: true, [`candidacyResponses/${State.playerId}`]: true });
+        };
+        actionZone.appendChild(yesBtn);
+        const noBtn = document.createElement('button');
+        noBtn.className = 'btn btn-secondary';
+        noBtn.textContent = 'Non merci';
+        noBtn.onclick = async () => {
+          await db.ref(`rooms/${State.roomCode}`).update({ [`mayorCandidates/${State.playerId}`]: false, [`candidacyResponses/${State.playerId}`]: true });
+        };
+        actionZone.appendChild(noBtn);
+      } else {
+        const doneP = document.createElement('p');
+        doneP.className = 'action-hint';
+        doneP.textContent = myResponse ? '✅ Tu es candidat(e) ! En attente des autres...' : '✅ Choix envoyé. En attente des autres...';
+        actionZone.appendChild(doneP);
+      }
+    } else {
+      narrationBox.textContent = "🗳️ Le village décide qui se présentera au poste de Maire...";
+    }
+    return;
+  }
+
+  if (room.status === 'mayor-speeches') {
+    const speech = room.mayorSpeech || {};
+    const order = speech.order || [];
+    const speakerId = order[speech.index || 0];
+    const speaker = room.players[speakerId];
+    if (State.playerId === speakerId) {
+      narrationBox.textContent = "🎤 C'est ton tour ! Utilise le chat du village pour convaincre tout le monde de voter pour toi.";
+      const doneBtn = document.createElement('button');
+      doneBtn.className = 'btn btn-primary';
+      doneBtn.textContent = "J'ai fini mon discours";
+      doneBtn.onclick = async () => { await db.ref(`rooms/${State.roomCode}/mayorSpeech/skipRequested`).set(State.playerId); };
+      actionZone.appendChild(doneBtn);
+    } else {
+      narrationBox.textContent = `🎤 ${speaker ? speaker.name : '???'} a la parole pour convaincre le village. Regarde le chat !`;
+    }
+    const upcoming = order.slice((speech.index || 0) + 1).map(id => room.players[id] ? room.players[id].name : '?');
+    if (upcoming.length) {
+      const upNext = document.createElement('p');
+      upNext.className = 'action-hint';
+      upNext.textContent = `À suivre : ${upcoming.join(', ')}`;
+      actionZone.appendChild(upNext);
+    }
+    return;
+  }
+
   if (room.status === 'mayor-election') {
     if (me.alive) {
       const myVote = room.mayorVotes && room.mayorVotes[State.playerId];
+      const pool = (room.mayorPool || []).map(id => [id, room.players[id]]).filter(([id,p]) => p);
       narrationBox.textContent = "👑 Le village doit élire son Maire, dont le vote comptera double lors des votes du jour. Qui proposez-vous ?";
-      renderPickerAction(actionZone, alivePlayers, 1, async (ids) => {
+      renderPickerAction(actionZone, pool, 1, async (ids) => {
         await db.ref(`rooms/${State.roomCode}/mayorVotes/${State.playerId}`).set(ids[0]);
       }, myVote, true);
     } else {
@@ -1234,6 +1313,11 @@ function renderActionProgressBar(room) {
     total = voters.length;
     done = voters.filter(([id]) => room.day && room.day.votes && room.day.votes[id]).length;
     label = '🗳️ Votes';
+  } else if (room.status === 'mayor-candidacy') {
+    const alive = Object.entries(room.players).filter(([id,p]) => p.alive);
+    total = alive.length;
+    done = alive.filter(([id]) => room.candidacyResponses && room.candidacyResponses[id] !== undefined).length;
+    label = '🗳️ Réponses';
   } else if (room.status === 'mayor-election') {
     const alive = Object.entries(room.players).filter(([id,p]) => p.alive);
     total = alive.length;
@@ -1254,7 +1338,7 @@ function renderActionProgressBar(room) {
 
 function renderHostControls(room) {
   if (!State.isHost) return;
-  const forceable = ['night', 'mayor-election', 'mayor-succession', 'hunter', 'day-vote'];
+  const forceable = ['night', 'mayor-candidacy', 'mayor-speeches', 'mayor-election', 'mayor-succession', 'hunter', 'day-vote'];
   if (!forceable.includes(room.status)) return;
   const zone = document.getElementById('action-zone');
   const row = document.createElement('div');
